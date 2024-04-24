@@ -1,0 +1,103 @@
+version: '3.8'
+services:
+  flight-service:
+    build:
+      context: ./flight-service
+      dockerfile: src/main/docker/Dockerfile.jvm
+    ports:
+      - "8079:8079"
+    environment:
+      QUARKUS_DATASOURCE_DB_KIND: postgresql
+      QUARKUS_DATASOURCE_USERNAME: user
+      QUARKUS_DATASOURCE_PASSWORD: password
+      QUARKUS_DATASOURCE_REACTIVE_URL: vertx-reactive:postgresql://flight-db:5432/flight-database
+      QUARKUS_GRPC_CLIENTS_PASSENGER_SERVICE_HOST: passenger-service
+    depends_on:
+      - flight-db
+    networks:
+      - app-network
+
+  passenger-service:
+    build:
+      context: ./passenger-service
+      dockerfile: src/main/docker/Dockerfile.jvm
+    ports:
+      - "8078:8078"
+      - "9000:9000"
+    environment:
+      QUARKUS_DATASOURCE_DB_KIND: postgresql
+      QUARKUS_DATASOURCE_USERNAME: user
+      QUARKUS_DATASOURCE_PASSWORD: password
+      QUARKUS_DATASOURCE_REACTIVE_URL: vertx-reactive:postgresql://passenger-db:5432/passenger-database
+#      It communicates on the internal port not exposed one
+      QUARKUS_BAGGAGE_RESOURCE_URL: http://baggage-service:8077
+      # TODO add KAFKA_BOOTSTRAP_SERVERS to the environment
+    depends_on:
+      - passenger-db
+    networks:
+      - app-network
+
+  baggage-service:
+    build:
+      context: ./baggage-service
+      dockerfile: src/main/docker/Dockerfile.jvm
+    ports:
+      - "8077:8077"
+    environment:
+      QUARKUS_DATASOURCE_DB_KIND: postgresql
+      QUARKUS_DATASOURCE_USERNAME: user
+      QUARKUS_DATASOURCE_PASSWORD: password
+      QUARKUS_DATASOURCE_REACTIVE_URL: vertx-reactive:postgresql://baggage-db:5432/baggage-database
+      # TODO add KAFKA_BOOTSTRAP_SERVERS to the environment
+    depends_on:
+      - baggage-db
+    networks:
+      - app-network
+
+  flight-db:
+    image: postgres:16.2
+    environment:
+      POSTGRES_DB: flight-database
+      POSTGRES_USER: user
+      POSTGRES_PASSWORD: password
+    volumes:
+      - flight-db-data:/var/lib/postgresql/data
+    networks:
+      - app-network
+
+  passenger-db:
+    image: postgres:16.2
+    environment:
+      POSTGRES_DB: passenger-database
+      POSTGRES_USER: user
+      POSTGRES_PASSWORD: password
+    volumes:
+      - passenger-db-data:/var/lib/postgresql/data
+    networks:
+      - app-network
+
+  baggage-db:
+    image: postgres:16.2
+    environment:
+      POSTGRES_DB: baggage-database
+      POSTGRES_USER: user
+      POSTGRES_PASSWORD: password
+    volumes:
+      - baggage-db-data:/var/lib/postgresql/data
+    networks:
+      - app-network
+
+# TODO add the Zookeeper service
+  zookeeper:
+
+  # TODO add the Kafka service
+  kafka:
+
+networks:
+  app-network:
+    driver: bridge
+
+volumes:
+  flight-db-data:
+  passenger-db-data:
+  baggage-db-data:
